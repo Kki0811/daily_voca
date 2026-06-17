@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로컬 음성 녹음기</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            padding: 20px;
+            background-color: #f4f7f6;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h2 { color: #333; }
+        .controls {
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        #startBtn { background-color: #4CAF50; color: white; }
+        #stopBtn { background-color: #f44336; color: white; }
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+        .list-container {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .playBtn { background-color: #2196F3; color: white; padding: 5px 10px; }
+        .deleteBtn { background-color: #9e9e9e; color: white; padding: 5px 10px; }
+    </style>
+</head>
+<body>
+
+    <h2>🎤 로컬 음성 녹음기</h2>
+    
+    <div class="controls">
+        <button id="startBtn">🔴 녹음 시작</button>
+        <button id="stopBtn" disabled>⏹️ 녹음 중지 및 저장</button>
+        <div id="status">대기 중...</div>
+    </div>
+
+    <div class="list-container">
+        <h3>📂 저장된 녹음 목록</h3>
+        <ul id="recordList"></ul>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioList = JSON.parse(localStorage.getItem('savedAudios')) || [];
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('status');
+        const recordList = document.getElementById('recordList');
+
+        // 페이지 로드 시 기존 녹음 목록 불러오기
+        window.onload = function() {
+            renderList();
+        };
+
+        // 1. 녹음 시작 이벤트
+        startBtn.onclick = async function() {
+            audioChunks = []; // 데이터 초기화
+            try {
+                // 마이크 권한 요청 및 스트림 획득
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        audioChunks.push(e.data);
+                    }
+                };
+
+                // 녹음이 완전히 멈췄을 때 동작
+                mediaRecorder.onstop = function() {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    // Blob 데이터를 로컬 저장을 위해 Base64 문자열로 변환
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = function() {
+                        const base64Audio = reader.result;
+                        
+                        // 데이터 배열에 추가 (저장 시간과 오디오 데이터)
+                        const newRecord = {
+                            id: Date.now(),
+                            date: new Date().toLocaleString(),
+                            audioData: base64Audio
+                        };
+                        
+                        audioList.push(newRecord);
+                        localStorage.setItem('savedAudios', JSON.stringify(audioList)); // 로컬에 저장
+                        renderList(); // 목록 갱신
+                        statusText.innerText = "녹음 파일이 로컬에 저장되었습니다!";
+                    };
+                };
+
+                mediaRecorder.start();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusText.innerText = "🎙️ 녹음 중...";
+
+            } catch (err) {
+                console.error("마이크 접근 실패:", err);
+                statusText.innerText = "❌ 마이크 권한이 거부되었거나 지원하지 않는 환경입니다.";
+            }
+        };
+
+        // 2. 녹음 중지 이벤트
+        stopBtn.onclick = function() {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                // 마이크 트랙 연결을 끊어 녹음 아이콘을 끔
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                statusText.innerText = "저장 중...";
+            }
+        };
+
+        // 3. 화면에 저장된 녹음 리스트 출력 함수
+        function renderList() {
+            recordList.innerHTML = '';
+            
+            if (audioList.length === 0) {
+                recordList.innerHTML = '<li>저장된 녹음 파일이 없습니다.</li>';
+                return;
+            }
+
+            audioList.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>📅 ${item.date}</span>
+                    <div>
+                        <button class="playBtn" onclick="playAudio('${item.id}')">▶️ 재생</button>
+                        <button class="deleteBtn" onclick="deleteAudio('${item.id}')">🗑️ 삭제</button>
+                    </div>
+                `;
+                recordList.appendChild(li);
+            });
+        }
+
+        // 4. 오디오 파일 재생 함수
+        window.playAudio = function(id) {
+            const record = audioList.find(item => item.id == id);
+            if (record) {
+                const audio = new Audio(record.audioData);
+                audio.play();
+                statusText.innerText = `▶️ [${record.date}] 녹음 파일 재생 중...`;
+                audio.onended = () => { statusText.innerText = "대기 중..."; };
+            }
+        };
+
+        // 5. 오디오 파일 삭제 함수
+        window.deleteAudio = function(id) {
+            if(confirm("이 녹음 파일을 삭제하시겠습니까?")) {
+                audioList = audioList.filter(item => item.id != id);
+                localStorage.setItem('savedAudios', JSON.stringify(audioList));
+                renderList();
+                statusText.innerText = "파일이 삭제되었습니다.";
+            }
+        };
+    </script>
+</body>
+</html>
