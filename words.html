@@ -137,14 +137,14 @@
 
         <div id="quiz-area" class="quiz-box">
             <div id="progress-text" style="font-weight: bold; color: var(--primary-color);">[ 1 / 5 ]</div>
-            <div id="word-target" class="word-display">Word</div>
-            <div id="hint-target" class="hint-text">뜻</div>
             
             <div class="quiz-btns">
-                <button class="main-btn btn-audio" onclick="playCurrentAudio()">🎤 엄마/아빠 목소리 듣기</button>
+                <button class="main-btn btn-audio" onclick="playCurrentAudio()">🎤 목소리 다시 듣기</button>
                 <button class="main-btn btn-hint" id="hint-btn" onclick="showHint()">👀 정답 확인하기</button>
                 
                 <div id="ox-area" class="row-btns" style="display: none;">
+                    <div id="word-target" class="word-display">Word</div>
+                    <div id="hint-target" class="hint-text">뜻</div>
                     <button class="main-btn btn-correct" onclick="handleResult(true)">⭕ 맞았어요!</button>
                     <button class="main-btn btn-wrong" onclick="handleResult(false)">❌ 틀렸어요</button>
                 </div>
