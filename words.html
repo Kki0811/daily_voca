@@ -100,6 +100,10 @@
         .btn-wrong { background: var(--danger-color); color: white; }
         .btn-next { background: var(--primary-color); color: white; }
         
+        /* 결과 영역 추가 */
+        .result-box { text-align: center; padding: 20px 0; display: none; }
+        .btn-retry-wrong { background: #8B5CF6; color: white; } /* 보라색 버튼 */
+
         /* 백업/로드 영역 */
         .backup-box {
             background: #F8FAFC;
@@ -163,6 +167,13 @@
                 <button class="main-btn btn-next" id="next-btn" onclick="nextQuestion()" style="display: none;">다음 문제로 ➡️</button>
             </div>
         </div>
+
+        <div id="result-area" class="result-box">
+            <h2>🎉 테스트 완료!</h2>
+            <p id="result-summary" style="font-size: 18px; font-weight: bold; margin: 20px 0; color: #334155;"></p>
+            <button class="main-btn btn-retry-wrong" id="retry-wrong-btn" onclick="startWrongQuiz()" style="display: none;">❌ 틀린 단어만 재시험 보기 🔄</button>
+            <button class="main-btn" onclick="initQuizArea()">메인화면으로 돌아가기 🏠</button>
+        </div>
     </div>
 
     <div id="manage-panel" class="panel">
@@ -216,6 +227,7 @@
     let dbWords = [];       
     let testQueue = [];     
     let currentIdx = 0;     
+    let wrongWordsThisRound = []; // 이번 라운드에서 틀린 단어를 임시 저장할 배열 추가
     
     let mediaRecorder;
     let audioChunks = [];
@@ -245,6 +257,7 @@
         document.getElementById('total-info').innerText = `현재 저장된 총 단어 수: ${dbWords.length}개`;
         document.getElementById('setup-area').style.display = 'block';
         document.getElementById('quiz-area').style.display = 'none';
+        document.getElementById('result-area').style.display = 'none'; // 결과창 숨기기
     }
 
     function startQuiz() {
@@ -272,8 +285,24 @@
         scoredWords.sort((a, b) => b.priorityScore - a.priorityScore);
         testQueue = scoredWords.slice(0, finalCount);
         
+        wrongWordsThisRound = []; // 오답 리스트 초기화
         currentIdx = 0;
         document.getElementById('setup-area').style.display = 'none';
+        document.getElementById('result-area').style.display = 'none';
+        document.getElementById('quiz-area').style.display = 'block';
+        showQuestion();
+    }
+
+    // 오답들만 모아서 재시험을 시작하는 함수 추가
+    function startWrongQuiz() {
+        if (wrongWordsThisRound.length === 0) return;
+
+        // 방금 틀렸던 단어들로 퀴즈 큐 세팅 (순서 가볍게 섞기 옵션 가능)
+        testQueue = [...wrongWordsThisRound];
+        wrongWordsThisRound = []; // 다음 라운드를 위해 초기화
+        currentIdx = 0;
+
+        document.getElementById('result-area').style.display = 'none';
         document.getElementById('quiz-area').style.display = 'block';
         showQuestion();
     }
@@ -314,6 +343,14 @@
             await localforage.setItem('wordbook', dbWords);
         }
 
+        // 틀렸을 경우 이번 라운드 오답 배열에 기억해두기
+        if (!isCorrect) {
+            // 중복 방지를 위한 체크 후 삽입
+            if (!wrongWordsThisRound.some(w => w.id === currentWord.id)) {
+                wrongWordsThisRound.push(currentWord);
+            }
+        }
+
         document.getElementById('ox-area').style.display = 'none';
         document.getElementById('next-btn').style.display = 'block';
     }
@@ -323,9 +360,32 @@
         if (currentIdx < testQueue.length) {
             showQuestion();
         } else {
-            alert("🎉 오늘의 정해진 테스트 단어를 전부 마쳤습니다! 참 잘했어요!");
-            initQuizArea();
+            // 시험이 끝났을 때 알림창 대신 결과창 UI를 띄워줌
+            finishQuiz();
         }
+    }
+
+    // 퀴즈 종료 처리를 위한 함수 분리 및 추가
+    function finishQuiz() {
+        document.getElementById('quiz-area').style.display = 'none';
+        document.getElementById('result-area').style.display = 'block';
+
+        const totalTestCount = testQueue.length;
+        const wrongCount = wrongWordsThisRound.length;
+        const correctCount = totalTestCount - wrongCount;
+
+        let summaryText = `총 ${totalTestCount}문제 중 ${correctCount}문제를 맞췄습니다!`;
+        
+        if (wrongCount > 0) {
+            summaryText += `<br><span style="color: var(--danger-color); font-size:16px;">틀린 단어가 ${wrongCount}개 있습니다. 다시 도전해볼까요?</span>`;
+            document.getElementById('retry-wrong-btn').style.display = 'block';
+            document.getElementById('retry-wrong-btn').innerText = `❌ 틀린 단어 (${wrongCount}개)만 다시 시험 치기 🔄`;
+        } else {
+            summaryText += `<br><span style="color: var(--success-color); font-size:16px;">💯 완벽해요! 모든 단어를 맞췄습니다! 👍</span>`;
+            document.getElementById('retry-wrong-btn').style.display = 'none';
+        }
+
+        document.getElementById('result-summary').innerHTML = summaryText;
     }
 
     function playCurrentAudio() {
@@ -482,10 +542,8 @@
     }
 
     /* ---------------------------------------------------
-       새로 추가된 백업(Export) 및 로드(Import) 자바스크립트 엔진
+       백업(Export) 및 로드(Import) 자바스크립트 엔진
     --------------------------------------------------- */
-    
-    // 1. 현재 localForage에 저장된 데이터를 JSON 파일로 다운로드합니다.
     async function backupData() {
         const words = await localforage.getItem('wordbook') || [];
         if (words.length === 0) {
@@ -497,7 +555,6 @@
             const dataStr = JSON.stringify(words, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
             
-            // 파일명에 현재 날짜를 포함하여 중복 방지
             const today = new Date().toISOString().slice(0, 10);
             const fileName = `wordbook_backup_${today}.json`;
             
@@ -515,12 +572,10 @@
         }
     }
 
-    // 2. 파일 선택 창을 강제로 띄워주는 트리거 함수입니다.
     function triggerLoadFile() {
         document.getElementById('backup-file-input').click();
     }
 
-    // 3. 사용자가 선택한 JSON 파일을 읽어 localForage에 병합/덮어쓰기합니다.
     function loadBackupData(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -530,7 +585,6 @@
             try {
                 const importedWords = JSON.parse(e.target.result);
                 
-                // 간단한 JSON 유효성 검증 (배열 형태인지 확인)
                 if (!Array.isArray(importedWords)) {
                     throw new Error("올바른 단어장 백업 파일 형식이 아닙니다.");
                 }
@@ -539,14 +593,12 @@
                     await localforage.setItem('wordbook', importedWords);
                     alert("🎉 단어장 데이터 복원이 성공적으로 완료되었습니다!");
                     
-                    // 데이터 UI 새로고침
                     dbWords = importedWords;
                     loadWordList();
                 }
             } catch (error) {
                 alert("파일을 읽는 도중 오류가 발생했습니다. 올바른 .json 백업 파일인지 확인해주세요.\n오류 내용: " + error.message);
             } finally {
-                // 동일 파일을 연속해서 올릴 때 변경 이벤트가 발생하지 않는 현상 방지용 초기화
                 event.target.value = '';
             }
         };
