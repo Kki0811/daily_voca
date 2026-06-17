@@ -77,6 +77,12 @@
             color: white;
             cursor: pointer;
             background: var(--primary-color);
+            transition: transform 0.1s, opacity 0.1s;
+        }
+        /* 버튼을 누를 때 쏙 들어가는 초1 맞춤형 피드백 효과 추가 */
+        button.main-btn:active {
+            transform: scale(0.98);
+            opacity: 0.9;
         }
         
         /* 퀴즈 영역 */
@@ -180,24 +186,21 @@
                     </tr>
                 </thead>
                 <tbody id="word-list-tbody">
-                    </tbody>
+                </tbody>
             </table>
         </div>
     </div>
 </div>
 
 <script>
-    // 상태 변수들
-    let dbWords = [];       // 전체 단어 배열
-    let testQueue = [];     // 오늘 테스트 타겟 단어 배열
-    let currentIdx = 0;     // 현재 테스트 인덱스
+    let dbWords = [];       
+    let testQueue = [];     
+    let currentIdx = 0;     
     
-    // 오디오 녹음 관련 변수
     let mediaRecorder;
     let audioChunks = [];
     let currentBase64Audio = "";
 
-    // 탭 전환
     function switchTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -213,7 +216,6 @@
         }
     }
 
-    // 초기 실행 및 세팅 데이터 로드
     window.addEventListener('DOMContentLoaded', async () => {
         await initQuizArea();
     });
@@ -225,9 +227,6 @@
         document.getElementById('quiz-area').style.display = 'none';
     }
 
-    // ==========================================
-    // ⭐ [핵심 추가] 스마트 정렬 알고리즘 기반 퀴즈 시작
-    // ==========================================
     function startQuiz() {
         if (dbWords.length === 0) {
             alert("테스트할 단어가 없습니다. 단어를 먼저 등록해주세요!");
@@ -238,47 +237,30 @@
         let inputCount = parseInt(document.getElementById('quiz-count').value) || 5;
         if (inputCount <= 0) inputCount = 5;
         
-        // 지정된 개수가 저장된 수보다 크면 전체 단어 수로 맞춤
         let finalCount = Math.min(inputCount, dbWords.length);
 
-        // 1. 단어장 복사본에 우선순위 가중치(Score) 계산해서 매기기
         let scoredWords = dbWords.map(word => {
-            // DB에 기록이 없을 때를 대비한 기본값 가드
             let total = word.totalCount || 0;
             let wrong = word.wrongCount || 0;
-            
-            let wrongRate = 0; // 오답률 기본 0%
-            let isNew = total === 0 ? 1 : 0; // 한 번도 출제 안 된 신규 단어 플래그
+            let wrongRate = total > 0 ? wrong / total : 0;
+            let isNew = total === 0 ? 1 : 0;
 
-            if (total > 0) {
-                wrongRate = wrong / total;
-            }
-
-            // 가중치 공식: 오답률이 클수록 우선순위 높음, 신규 단어면 오답률 100%와 동일 취급 (기본 우선권 가중치 1.0 부여)
-            // 미세한 랜덤값(0~0.01)을 더해 오답률이나 신규 조건이 같을 때 매번 출제 순서가 섞이도록 설계
             let priorityScore = (isNew ? 1.0 : wrongRate) + (Math.random() * 0.01);
-
             return { ...word, priorityScore };
         });
 
-        // 2. 가중치가 높은 순(내림차순)으로 상위 배열 정렬
         scoredWords.sort((a, b) => b.priorityScore - a.priorityScore);
-
-        // 3. 정렬된 최우선 순위 묶음에서 사용자가 요청한 개수만큼 딱 잘라 담기
         testQueue = scoredWords.slice(0, finalCount);
         
-        // 4. 퀴즈 UI 전환 및 첫 문제 준비
         currentIdx = 0;
         document.getElementById('setup-area').style.display = 'none';
         document.getElementById('quiz-area').style.display = 'block';
         showQuestion();
     }
 
-    // 문제 표시
     function showQuestion() {
         let currentWord = testQueue[currentIdx];
         
-        // UI 리셋
         document.getElementById('progress-text').innerText = `[ ${currentIdx + 1} / ${testQueue.length} ]`;
         document.getElementById('word-target').innerText = currentWord.en;
         document.getElementById('hint-target').innerText = currentWord.ko;
@@ -288,50 +270,35 @@
         document.getElementById('ox-area').style.display = 'none';
         document.getElementById('next-btn').style.display = 'none';
 
-        // 영어 단어 노출 시 바로 녹음된 목소리 재생 자동 지원
-        playCurrentAudio();
+        // 브라우저 자동 재생 거부를 고려해 약간의 유예를 두고 재생 시도
+        setTimeout(() => { playCurrentAudio(); }, 300);
     }
 
-    // 힌트(정답) 보기 눌렀을 때
     function showHint() {
         document.getElementById('hint-target').style.display = 'block';
         document.getElementById('hint-btn').style.display = 'none';
-        // 아이가 답을 확인한 뒤 부모가 O/X를 판단해 누르도록 노출
         document.getElementById('ox-area').style.display = 'flex';
     }
 
-    // ==========================================
-    // ⭐ [핵심 추가] 결과 입력받고 DB 업데이트 처리
-    // ==========================================
     async function handleResult(isCorrect) {
         let currentWord = testQueue[currentIdx];
-
-        // 1. 원본 DB 배열에서 해당 단어 인덱스 찾기
         let targetIdx = dbWords.findIndex(w => w.id === currentWord.id);
         
         if (targetIdx !== -1) {
-            // 통계 필드가 없으면 초기화 생성
             if (!dbWords[targetIdx].totalCount) dbWords[targetIdx].totalCount = 0;
             if (!dbWords[targetIdx].wrongCount) dbWords[targetIdx].wrongCount = 0;
 
-            // 전체 시도 횟수 1 증가
             dbWords[targetIdx].totalCount += 1;
-            
             if (!isCorrect) {
-                // 틀렸으면 오답 횟수 1 증가
                 dbWords[targetIdx].wrongCount += 1;
             }
-
-            // 2. 바뀐 데이터 변동 내역 IndexedDB 저장소에 실시간 반영
             await localforage.setItem('wordbook', dbWords);
         }
 
-        // 결과 선택 후 다음 문제로 넘어갈 수 있도록 유도
         document.getElementById('ox-area').style.display = 'none';
         document.getElementById('next-btn').style.display = 'block';
     }
 
-    // 다음 문제로 이동 처리
     function nextQuestion() {
         currentIdx++;
         if (currentIdx < testQueue.length) {
@@ -342,23 +309,19 @@
         }
     }
 
-    // 현재 단어의 발음 오디오 재생
     function playCurrentAudio() {
+        if (!testQueue[currentIdx]) return;
         let audioData = testQueue[currentIdx].audio;
         if(audioData) {
             let audio = new Audio(audioData);
-            audio.play().catch(e => console.log("자동 재생 제한 또는 파일 에러: ", e));
+            audio.play().catch(e => console.log("자동 재생 오디오 제한됨:", e));
         } else {
-            // 녹음본이 없을 시 브라우저 기본 TTS 백업 작동
             let tts = new SpeechSynthesisUtterance(testQueue[currentIdx].en);
             tts.lang = 'en-US';
             window.speechSynthesis.speak(tts);
         }
     }
 
-    // ==========================================
-    // [단어 관리 & 녹음 로직 영역]
-    // ==========================================
     async function loadWordList() {
         dbWords = await localforage.getItem('wordbook') || [];
         let tbody = document.getElementById('word-list-tbody');
@@ -398,7 +361,6 @@
         }
 
         if(editId) {
-            // 수정 모드
             let targetIdx = dbWords.findIndex(w => w.id == editId);
             if(targetIdx !== -1) {
                 dbWords[targetIdx].en = en;
@@ -408,7 +370,6 @@
                 }
             }
         } else {
-            // 신규 등록 모드 (통계 필드 기본값 0 세팅)
             let newWord = {
                 id: Date.now(),
                 en: en,
@@ -462,7 +423,6 @@
         currentBase64Audio = "";
     }
 
-    // 마이크 음성 녹음 제어 함수
     async function toggleRecording() {
         let btn = document.getElementById('record-btn');
         
@@ -485,7 +445,8 @@
                 
                 mediaRecorder.start();
                 btn.innerText = "⏹️ 녹음 중지";
-                btn.style.background = var(--danger-color);
+                // 문자열로 감싸 CSS 변수를 정상 할당하도록 수정함
+                btn.style.background = "var(--danger-color)";
             } catch (err) {
                 alert("마이크 연결 실패: 권한 허용을 확인하세요.");
             }
