@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초1 아들을 위한 대용량 맞춤 영어 단어장</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; text-align: center; background-color: #f0f8ff; margin: 0; padding: 20px; }
+        .container { max-width: 550px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 5px; }
+        .sub-title { font-size: 14px; color: #666; margin-bottom: 20px; }
+        .nav-buttons { margin-bottom: 20px; }
+        button { color: white; border: none; padding: 10px 18px; font-size: 15px; border-radius: 8px; cursor: pointer; margin: 4px; font-weight: bold; }
+        button:active { transform: scale(0.98); }
+        .page { display: none; }
+        .active { display: block; }
+        input { width: 80%; padding: 10px; margin: 8px 0; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
+        
+        /* 버튼 색상 정의 */
+        .btn-quiz { background-color: #4cae4c; }
+        .btn-admin { background-color: #70a1ff; }
+        .btn-save { background-color: #2ed573; width: 85%; margin-top: 15px; }
+        .btn-backup { background-color: #ffa502; }
+        .btn-restore { background-color: #9b59b6; }
+        
+        .btn-record { background-color: #ff4757; }
+        .btn-record.recording { animation: pulse 1s infinite; background-color: #ff6b81; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+        
+        .word-display { font-size: 48px; font-weight: bold; color: #1e90ff; margin: 30px 0; min-height: 70px; }
+        .meaning-display { font-size: 28px; color: #555; margin: 20px 0; min-height: 40px; }
+        .backup-zone { background-color: #f9f9f9; border: 1px dashed #bbb; padding: 15px; border-radius: 10px; margin-top: 25px; }
+        
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🦁 우리 아이 스마트 단어장 </h1>
+    <div class="sub-title">용량 제한 없음 · 음성 파일 백업 및 복원 지원</div>
+    
+    <div class="nav-buttons">
+        <button class="btn-quiz" onclick="showPage('quiz-page')">🎯 퀴즈 맞추기</button>
+        <button class="btn-admin" onclick="showPage('admin-page')">⚙️ 단어 등록 및 백업</button>
+    </div>
+
+    <div id="admin-page" class="page">
+        <h3>📝 새 단어와 목소리 등록</h3>
+        <input type="text" id="input-word" placeholder="영어 단어 입력 (예: apple)">
+        <input type="text" id="input-meaning" placeholder="한국어 뜻 입력 (예: 사과)">
+        
+        <div style="margin-top: 10px;">
+            <button id="record-btn" class="btn-record" onclick="toggleRecording()">🎤 목소리 녹음 시작</button>
+            <div id="record-status" style="color: red; font-weight: bold; margin-top: 5px; font-size: 14px;"></div>
+            <audio id="audio-preview" controls style="display:none; margin: 10px auto;"></audio>
+        </div>
+        
+        <button class="btn-save" onclick="saveWord()">📌 단어와 음성 파일 저장</button>
+        <p id="admin-msg" style="color: blue; font-weight: bold;"></p>
+
+        <div class="backup-zone">
+            <h4>💾 데이터 백업 및 파일 로딩</h4>
+            <p style="font-size: 12px; color:#666; margin-top:-5px;">단어가 많아지면 아래 버튼을 눌러 파일로 꼭 백업해 두세요.</p>
+            <button class="btn-backup" onclick="exportDatabase()">📥 현재까지 저장된 모든 데이터 백업하기</button>
+            
+            <div style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
+                <label style="font-weight: bold; font-size: 14px; display: block; margin-bottom: 5px;">📤 백업 파일(.json) 불러오기</label>
+                <input type="file" id="import-file" accept=".json" style="width: 80%; font-size: 12px;">
+                <br>
+                <button class="btn-restore" onclick="importDatabase()">🔥 선택한 백업 파일로 복원하기</button>
+            </div>
+        </div>
+
+        <div style="margin-top:20px; text-align: left; font-size: 14px; font-weight: bold;">
+            총 등록된 단어 수: <span id="total-count" style="color: blue;">0</span>개
+        </div>
+    </div>
+
+    <div id="quiz-page" class="page active">
+        <h3>🎯 어떤 단어일까요?</h3>
+        <div class="word-display" id="quiz-word">데이터 로딩 중...</div>
+        <div class="meaning-display" id="quiz-meaning"></div>
+        
+        <button onclick="playQuizAudio()" style="background-color: #ffa502; font-size: 20px; padding: 15px 30px; display: none;" id="play-voice-btn">🔊 엄마/아빠 목소리 듣기</button>
+        <br><br>
+        <button onclick="showAnswer()" style="background-color: #747d8c;">👁️ 정답 확인</button>
+        <button onclick="nextQuiz()" style="background-color: #ff4757;">➡️ 다음 단어 랜덤</button>
+    </div>
+</div>
+
+<script>
+    // --- [IndexedDB 설정: 대용량 저장소] ---
+    const DB_NAME = "VoiceWordQuizDB";
+    const DB_VERSION = 1;
+    const STORE_NAME = "words";
+    let db = null;
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let currentAudioBase64 = ""; 
+    let wordListCache = []; // 빠른 퀴즈 처리를 위한 메모리 캐시
+    let currentQuizWord = null;
+
+    // 데이터베이스 초기화
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = (event) => reject("DB 개방 에러: " + event.target.errorCode);
+            request.onsuccess = (event) => {
+                db = event.target.result;
+                loadWordsFromDB().then(() => resolve());
+            };
+
+            request.onupgradeneeded = (event) => {
+                const dbInstance = event.target.result;
+                if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
+                    // id를 자동 증가 키로 생성
+                    dbInstance.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+                }
+            };
+        });
+    }
+
+    // DB에서 모든 단어 읽어와서 동기화
+    function loadWordsFromDB() {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], "readonly");
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+
+            request.onsuccess = (event) => {
+                wordListCache = event.target.result;
+                document.getElementById('total-count').innerText = wordListCache.length;
+                resolve(wordListCache);
+            };
+            request.onerror = () => reject("데이터 로드 실패");
+        });
+    }
+
+    // 페이지 전환 함수
+    function showPage(pageId) {
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        if(pageId === 'quiz-page') {
+            nextQuiz();
+        }
+    }
+
+    // --- [마이크 음성 녹음 기능] ---
+    async function toggleRecording() {
+        const recordBtn = document.getElementById('record-btn');
+        const statusText = document.getElementById('record-status');
+        const previewAudio = document.getElementById('audio-preview');
+
+        if (!isRecording) {
+            audioChunks = [];
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = () => {
+                        currentAudioBase64 = reader.result; 
+                        previewAudio.src = currentAudioBase64;
+                        previewAudio.style.display = 'block'; 
+                    };
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                recordBtn.innerText = "🛑 녹음 중지 (완료)";
+                recordBtn.classList.add('recording');
+                statusText.innerText = "지금 말씀하세요! 녹음 중...";
+            } catch (err) {
+                alert("마이크 권한 허용이 필요합니다.");
+                console.error(err);
+            }
+        } else {
+            mediaRecorder.stream.getTracks().forEach(track => track.stop()); 
+            mediaRecorder.stop();
+            isRecording = false;
+            recordBtn.innerText = "🎤 다시 녹음하기";
+            recordBtn.classList.remove('recording');
+            statusText.innerText = "녹음 완료! 아래에서 들어보고 저장하세요.";
+        }
+    }
+
+    // 단어 및 대용량 음성 DB 저장
+    function saveWord() {
+        const word = document.getElementById('input-word').value.trim();
+        const meaning = document.getElementById('input-meaning').value.trim();
+        const msg = document.getElementById('admin-msg');
+
+        if (!word || !meaning) return alert("영어 단어와 뜻을 입력해 주세요.");
+        if (!currentAudioBase64) return alert("아이 목소리나 부모님 목소리를 녹음해 주세요!");
+
+        const newWordData = {
+            word: word,
+            meaning: meaning,
+            audio: currentAudioBase64
+        };
+
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.add(newWordData);
+
+        request.onsuccess = () => {
+            loadWordsFromDB().then(() => {
+                document.getElementById('input-word').value = "";
+                document.getElementById('input-meaning').value = "";
+                document.getElementById('audio-preview').style.display = 'none';
+                document.getElementById('record-status').innerText = "";
+                document.getElementById('record-btn').innerText = "🎤 목소리 녹음 시작";
+                currentAudioBase64 = "";
+
+                msg.innerText = `🎉 "${word}" 단어와 대용량 음성 파일이 DB에 안전하게 저장되었습니다!`;
+                setTimeout(() => msg.innerText = "", 3000);
+            });
+        };
+
+        request.onerror = () => alert("저장 실패! 용량 부족 또는 데이터베이스 오류입니다.");
+    }
+
+    // --- [데이터 파일 백업 (Export)] ---
+    function exportDatabase() {
+        if (wordListCache.length === 0) {
+            alert("백업할 단어 데이터가 없습니다.");
+            return;
+        }
+
+        // 전체 데이터를 텍스트화(JSON)하여 파일 다운로드 형태로 추출
+        const jsonString = JSON.stringify(wordListCache, null, 2);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        const date = new Date().toISOString().slice(0,10);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `우리집_단어장_백업_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert("📥 모든 단어와 음성 파일이 포함된 백업 파일이 다운로드 폴더에 저장되었습니다!");
+    }
+
+    // --- [백업 파일 로딩 및 복원 (Import)] ---
+    function importDatabase() {
+        const fileInput = document.getElementById('import-file');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert("가져올 백업 파일(.json)을 선택해 주세요.");
+            return;
+        }
+
+        if (!confirm("백업 파일을 불러오면 기존에 저장되어 있던 단어 데이터는 지워지고 백업 파일 내용으로 바뀝니다. 계속할까요?")) {
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (!Array.isArray(importedData)) {
+                    throw new Error("올바른 단어장 백업 형식이 아닙니다.");
+                }
+
+                // 1단계: 기존 대용량 저장소 비우기
+                const transactionClear = db.transaction([STORE_NAME], "readwrite");
+                const storeClear = transactionClear.objectStore(STORE_NAME);
+                const requestClear = storeClear.clear();
+
+                requestClear.onsuccess = () => {
+                    // 2단계: 백업 파일의 데이터를 하나씩 새로 추가하기
+                    const transactionAdd = db.transaction([STORE_NAME], "readwrite");
+                    const storeAdd = transactionAdd.objectStore(STORE_NAME);
+                    
+                    importedData.forEach(item => {
+                        // 기존에 있던 고유 ID 유지를 위해 정리 후 저장
+                        const cleanItem = { word: item.word, meaning: item.meaning, audio: item.audio };
+                        storeAdd.add(cleanItem);
+                    });
+
+                    transactionAdd.oncomplete = () => {
+                        loadWordsFromDB().then(() => {
+                            alert(`📤 백업 파일 로딩 완료! 총 ${wordListCache.length}개의 단어와 음성 파일이 완벽히 복원되었습니다.`);
+                            fileInput.value = ""; // 파일 입력창 초기화
+                            nextQuiz();
+                        });
+                    };
+                };
+
+            } catch (err) {
+                alert("파일 읽기 실패: 올바른 단어장 백업 .json 파일이 아닙니다.\n" + err.message);
+            }
+        };
+
+        reader.readAsText(file);
+    }
+
+    // --- [아이용 랜덤 퀴즈 구현] ---
+    function nextQuiz() {
+        const quizWordDiv = document.getElementById('quiz-word');
+        const quizMeaningDiv = document.getElementById('quiz-meaning');
+        const playBtn = document.getElementById('play-voice-btn');
+
+        if (wordListCache.length === 0) {
+            quizWordDiv.innerText = "단어가 없습니다.";
+            quizMeaningDiv.innerText = "오른쪽 위 버튼을 눌러 단어와 목소리를 등록해 주세요!";
+            playBtn.style.display = 'none';
+            return;
+        }
+
+        const randomIndex = Math.floor(Math.random() * wordListCache.length);
+        currentQuizWord = wordListCache[randomIndex];
+
+        quizWordDiv.innerText = currentQuizWord.word; 
+        quizMeaningDiv.innerText = ""; 
+        
+        if (currentQuizWord.audio) {
+            playBtn.style.display = 'inline-block';
+        } else {
+            playBtn.style.display = 'none';
+        }
+    }
+
+    function playQuizAudio() {
+        if (currentQuizWord && currentQuizWord.audio) {
+            const audio = new Audio(currentQuizWord.audio);
+            audio.play();
+        }
+    }
+
+    function showAnswer() {
+        if (currentQuizWord) {
+            document.getElementById('quiz-meaning').innerText = `뜻: ${currentQuizWord.meaning}`;
+        }
+    }
+
+    // 시작 시 데이터베이스 로드 및 실행
+    initDB().then(() => {
+        nextQuiz();
+    }).catch(err => {
+        alert("시스템 초기화 실패: " + err);
+    });
+</script>
+
+</div>
+</body>
+</html>
