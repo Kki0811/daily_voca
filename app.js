@@ -549,10 +549,10 @@ async function fetchLastUpdatedTime() {
             hour12: false
         });
 
-        document.getElementById('last-updated').innerText = `© 냥냥 영어 단어장 | Last Updated: ${formattedDate}`;
+        document.getElementById('last-updated').innerText = `© 2026 kki0811 (냥냥 영어 단어장). All rights reserved. | Last Updated: ${formattedDate}`;
     } catch (error) {
         console.error("배포 시간 로드 실패:", error);
         // 오류 발생 시 현재 시스템 시간이라도 가독성 있게 기본 출력
-        document.getElementById('last-updated').innerText = `© 냥냥 영어 단어장 | Live Mode`;
+        document.getElementById('last-updated').innerText = `© 2026 kki0811 (냥냥 영어 단어장). All rights reserved. | Live Mode`;
     }
 }
