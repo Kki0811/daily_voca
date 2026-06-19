@@ -198,10 +198,11 @@ function showQuestion() {
     document.getElementById('hint-target').style.display = 'none';
     document.getElementById('ox-area').style.display = 'none';
     
-    // 상태값 변수 및 다음 버튼 비활성화 초기화
+    // 상태값 변수 초기화 및 다음 버튼 숨기기 + 비활성화
     currentSelection = null;
     const nextBtn = document.getElementById('next-btn');
     nextBtn.disabled = true;
+    nextBtn.style.display = 'none';
     nextBtn.innerText = "다음 문제로 ➡️";
 
     // OX 버튼 선택 디자인 초기화
@@ -225,11 +226,18 @@ function showQuestion() {
     setTimeout(() => { playCurrentAudio(); }, 300);
 }
 
+// 정답 확인 버튼 클릭 시
 function showHint() {
     if (hintTimer) clearTimeout(hintTimer);
     document.getElementById('hint-target').style.display = 'block';
     document.getElementById('hint-btn').style.display = 'none';
+    
+    // OX 영역 노출과 동시에 하단에 잠긴 다음 문제 풀기 버튼도 미리 세팅해줍니다.
     document.getElementById('ox-area').style.display = 'flex';
+    
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.style.display = 'block';
+    nextBtn.disabled = true;
 }
 
 // O / X 버튼 선택 시 임시 보관 및 디자인 변경
@@ -237,7 +245,7 @@ function selectScore(isCorrect) {
     currentSelection = isCorrect; 
     
     const nextBtn = document.getElementById('next-btn');
-    nextBtn.disabled = false; // 다음 버튼 언락
+    nextBtn.disabled = false; // 다음 버튼 잠금 해제
     
     const correctBtn = document.getElementById('btn-ox-correct');
     const wrongBtn = document.getElementById('btn-ox-wrong');
