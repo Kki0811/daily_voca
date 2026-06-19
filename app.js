@@ -187,7 +187,7 @@ function startWrongQuiz() {
     showQuestion();
 }
 
-// 문제 출제 (3초 잠금 장치 및 선택 상태 초기화)
+// 문제 출제 (상태 초기화)
 function showQuestion() {
     let currentWord = testQueue[currentIdx];
     
@@ -198,14 +198,13 @@ function showQuestion() {
     document.getElementById('hint-target').style.display = 'none';
     document.getElementById('ox-area').style.display = 'none';
     
-    // 상태값 변수 초기화 및 다음 버튼 숨기기 + 비활성화
+    // 상태값 변수 초기화 및 다음 버튼 잠금
     currentSelection = null;
     const nextBtn = document.getElementById('next-btn');
     nextBtn.disabled = true;
-    nextBtn.style.display = 'none';
     nextBtn.innerText = "다음 문제로 ➡️";
 
-    // OX 버튼 선택 디자인 초기화
+    // OX 버튼 디자인 스타일 초기화
     document.getElementById('btn-ox-correct').style.border = "none";
     document.getElementById('btn-ox-wrong').style.border = "none";
     document.getElementById('btn-ox-correct').style.opacity = "1";
@@ -226,18 +225,14 @@ function showQuestion() {
     setTimeout(() => { playCurrentAudio(); }, 300);
 }
 
-// 정답 확인 버튼 클릭 시
+// 정답 확인 버튼 클릭 시 호출
 function showHint() {
     if (hintTimer) clearTimeout(hintTimer);
     document.getElementById('hint-target').style.display = 'block';
     document.getElementById('hint-btn').style.display = 'none';
     
-    // OX 영역 노출과 동시에 하단에 잠긴 다음 문제 풀기 버튼도 미리 세팅해줍니다.
+    // ox-area 상자를 열면 내부의 다음 버튼까지 안정적으로 함께 노출됩니다.
     document.getElementById('ox-area').style.display = 'flex';
-    
-    const nextBtn = document.getElementById('next-btn');
-    nextBtn.style.display = 'block';
-    nextBtn.disabled = true;
 }
 
 // O / X 버튼 선택 시 임시 보관 및 디자인 변경
@@ -245,7 +240,7 @@ function selectScore(isCorrect) {
     currentSelection = isCorrect; 
     
     const nextBtn = document.getElementById('next-btn');
-    nextBtn.disabled = false; // 다음 버튼 잠금 해제
+    nextBtn.disabled = false; // [다음 문제로] 활성화
     
     const correctBtn = document.getElementById('btn-ox-correct');
     const wrongBtn = document.getElementById('btn-ox-wrong');
@@ -265,14 +260,13 @@ function selectScore(isCorrect) {
     }
 }
 
-// [다음 문제로] 버튼 클릭 시 확정 저장 후 이동
+// [다음 문제로] 버튼 클릭 시 최종 저장 후 이동
 async function commitAndNext() {
     if (currentSelection === null) return; 
 
     let currentWord = testQueue[currentIdx];
     let targetIdx = dbWords.findIndex(w => w.id === currentWord.id);
     
-    // 최종 확인 상태에서만 LocalForage 스탯을 올림
     if (targetIdx !== -1) {
         if (!dbWords[targetIdx].totalCount) dbWords[targetIdx].totalCount = 0;
         if (!dbWords[targetIdx].wrongCount) dbWords[targetIdx].wrongCount = 0;
@@ -284,14 +278,12 @@ async function commitAndNext() {
         await localforage.setItem('wordbook', dbWords);
     }
 
-    // 이번 라운드 오답 목록 세팅
     if (currentSelection === false) {
         if (!wrongWordsThisRound.some(w => w.id === currentWord.id)) {
             wrongWordsThisRound.push(currentWord);
         }
     }
 
-    // 다음 분기로 처리
     currentIdx++;
     if (currentIdx < testQueue.length) {
         showQuestion();
