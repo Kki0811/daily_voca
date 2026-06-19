@@ -96,14 +96,18 @@
         
         .btn-audio { background: var(--secondary-color); color: white; }
         .btn-hint { background: #64748B; color: white; }
+        
+        /* [변경] 버튼 비활성화(disabled) 상태일 때 흐릿하게 보이도록 스타일 추가 */
+        button.main-btn:disabled { background: #CBD5E1 !important; color: #94A3B8 !important; cursor: not-allowed; transform: none !important; opacity: 1 !important; }
+
         .btn-correct { background: var(--success-color); color: white; }
         .btn-wrong { background: var(--danger-color); color: white; }
         .btn-next { background: var(--primary-color); color: white; }
         
         /* 결과 영역 */
         .result-box { text-align: center; padding: 20px 0; display: none; }
-        .btn-retry-all { background: #10B981; color: white; }    /* 초록색 버튼 */
-        .btn-retry-wrong { background: #8B5CF6; color: white; }  /* 보라색 버튼 */
+        .btn-retry-all { background: #10B981; color: white; }    
+        .btn-retry-wrong { background: #8B5CF6; color: white; }  
 
         /* 백업/로드 영역 */
         .backup-box {
@@ -177,12 +181,10 @@
                 <label for="quiz-count">✍️ 테스트할 총 단어 개수:</label>
                 <input type="number" id="quiz-count" min="1" value="5" placeholder="예: 5">
 
-                <!-- 검색 가능한 단어 선택 기능 상자 -->
                 <label for="word-search-input">🎯 꼭 포함할 단어 검색 및 선택 (선택 사항):</label>
                 <input type="text" id="word-search-input" list="word-search-options" placeholder="🔍 단어나 뜻을 입력하면 나타나요..." oninput="handleWordSearchSelect()">
                 <datalist id="word-search-options">
-                    <!-- 자바스크립트에서 동적 생성됨 -->
-                </datalist>
+                    </datalist>
                 
                 <div style="font-size: 12px; color: #64748B; margin-top: 10px; font-weight: bold;">내가 직접 고른 단어 목록:</div>
                 <div id="selected-words-container" class="selected-words-box">
@@ -197,6 +199,7 @@
             
             <div class="quiz-btns">
                 <button class="main-btn btn-audio" onclick="playCurrentAudio()">🎤 목소리 다시 듣기</button>
+                
                 <button class="main-btn btn-hint" id="hint-btn" onclick="showHint()">👀 정답 확인하기</button>
                 
                 <div id="ox-area" class="row-btns" style="display: none;">
@@ -276,9 +279,10 @@
     let currentIdx = 0;     
     let wrongWordsThisRound = []; 
     let currentRoundOriginalWords = []; 
-    
-    // 수동 선택 단어의 고유 ID 보관소
     let customSelectedIds = [];
+    
+    // [추가] 타이머 관리를 위한 변수 선언
+    let hintTimer;
 
     let mediaRecorder;
     let audioChunks = [];
@@ -317,7 +321,6 @@
         document.getElementById('result-area').style.display = 'none';
     }
 
-    // 검색용 데이터리스트 목록 갱신 기능
     function updateQuizDropdown() {
         const datalist = document.getElementById('word-search-options');
         datalist.innerHTML = '';
@@ -335,7 +338,6 @@
         });
     }
 
-    // 실시간 검색 매칭 후 단어 칩 추가 기능
     function handleWordSearchSelect() {
         const input = document.getElementById('word-search-input');
         const val = input.value.trim();
@@ -359,14 +361,12 @@
         }
     }
 
-    // 단어 선택 해제 기능
     function removeSelectedWord(id) {
         customSelectedIds = customSelectedIds.filter(itemId => itemId !== id);
         renderSelectedChips();
         updateQuizDropdown();
     }
 
-    // 고른 단어 카드식 UI 빌더
     function renderSelectedChips() {
         const container = document.getElementById('selected-words-container');
         if (customSelectedIds.length === 0) {
@@ -398,7 +398,6 @@
         
         let finalCount = Math.min(inputCount, dbWords.length);
 
-        // 직접 고른 단어 세팅
         let chosenWords = dbWords.filter(word => customSelectedIds.includes(word.id));
         
         if (finalCount < chosenWords.length) {
@@ -406,7 +405,6 @@
             document.getElementById('quiz-count').value = finalCount;
         }
 
-        // 남는 자리 자동 매칭 알고리즘 가동
         let remainingCount = finalCount - chosenWords.length;
         let otherWords = [];
 
@@ -427,7 +425,6 @@
             otherWords = scoredWords.slice(0, remainingCount);
         }
 
-        // 전체 합산 후 출제 순서 랜덤 셔플
         testQueue = [...chosenWords, ...otherWords].sort(() => Math.random() - 0.5);
         
         currentRoundOriginalWords = [...testQueue];
@@ -464,6 +461,7 @@
         showQuestion();
     }
 
+    // [수정] 문제 출제 시 3초 락(Lock) 기능을 추가한 함수
     function showQuestion() {
         let currentWord = testQueue[currentIdx];
         
@@ -472,14 +470,31 @@
         document.getElementById('hint-target').innerText = currentWord.ko;
         
         document.getElementById('hint-target').style.display = 'none';
-        document.getElementById('hint-btn').style.display = 'block';
         document.getElementById('ox-area').style.display = 'none';
         document.getElementById('next-btn').style.display = 'none';
+
+        // 1. 정답 확인하기 버튼 노출 및 즉시 '비활성화'
+        const hintBtn = document.getElementById('hint-btn');
+        hintBtn.style.display = 'block';
+        hintBtn.disabled = true; 
+        hintBtn.innerText = "⏱️ 잠시 후 정답 확인 가능 (3초)";
+
+        // 2. 이전에 돌고 있던 타이머가 있다면 초기화 (오작동 방지)
+        if (hintTimer) clearTimeout(hintTimer);
+
+        // 3. 3초(3000ms) 뒤에 다시 활성화 시키는 타이머 가동
+        hintTimer = setTimeout(() => {
+            hintBtn.disabled = false;
+            hintBtn.innerText = "👀 정답 확인하기";
+        }, 3000);
 
         setTimeout(() => { playCurrentAudio(); }, 300);
     }
 
     function showHint() {
+        // [추가] 혹시 모를 타이머 클리어
+        if (hintTimer) clearTimeout(hintTimer);
+        
         document.getElementById('hint-target').style.display = 'block';
         document.getElementById('hint-btn').style.display = 'none';
         document.getElementById('ox-area').style.display = 'flex';
