@@ -32,6 +32,7 @@ function switchTab(tab) {
 // 초기화 가동
 window.addEventListener('DOMContentLoaded', async () => {
     await initQuizArea();
+    fetchLastUpdatedTime(); // 배포 시간 자동 로드 함수 호출
 });
 
 async function initQuizArea() {
@@ -522,4 +523,36 @@ function loadBackupData(event) {
         }
     };
     reader.readAsText(file);
+}
+
+// [신규 추가] 깃허브 API를 이용해 최근 커밋(배포) 시간을 자동으로 가져오는 함수
+async function fetchLastUpdatedTime() {
+    const repoOwner = "kki0811";
+    const repoName = "voice_record";
+    const url = `https://api.github.com/repos/${repoOwner}/${repoName}/commits/main`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("네트워크 응답 오류");
+        
+        const data = await response.json();
+        const commitDateStr = data.commit.committer.date; // 예: "2026-06-19T14:00:00Z"
+        
+        // UTC 시간을 브라우저 현지 시간(KST)으로 변환 포맷팅
+        const date = new Date(commitDateStr);
+        const formattedDate = date.toLocaleString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+
+        document.getElementById('last-updated').innerText = `© 냥냥 영어 단어장 | Last Updated: ${formattedDate}`;
+    } catch (error) {
+        console.error("배포 시간 로드 실패:", error);
+        // 오류 발생 시 현재 시스템 시간이라도 가독성 있게 기본 출력
+        document.getElementById('last-updated').innerText = `© 냥냥 영어 단어장 | Live Mode`;
+    }
 }
